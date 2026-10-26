@@ -169,7 +169,7 @@ Type `/` at the beginning of a dedicated line (leading indentation is preserved)
 - `--seed=<number>`: Creates deterministic, 100% reproducible pseudo-random output.
 - `--edge=empty`: Generates an empty array (tests zero-state UI).
 - `--edge=long`: Stretches string fields to extreme lengths (tests UI overflow & wrapping).
-- `--edge=boundary`: Uses extreme numeric limits (`0`, negative values, `Number.MAX_SAFE_INTEGER`).
+- `--edge=boundary`: Uses extreme numeric limits (`0`, `-1`, `Number.MIN_SAFE_INTEGER`, `Number.MAX_SAFE_INTEGER`).
 
 ---
 
@@ -212,7 +212,7 @@ Configure Nihilanth in your VS Code settings (`settings.json`):
 | :--- | :--- | :--- |
 | `nihilanth.prefix` | `"/"` | The character sequence used to trigger slash commands on dedicated lines. |
 | `nihilanth.captureEnabled` | `true` | Automatically record observed declarations and deleted fragments. |
-| `nihilanth.historyLimitMB` | `100` | Storage cap in MB for automatic memory. Oldest items are LRU evicted; pins never expire. |
+| `nihilanth.historyLimitMB` | `100` | Storage cap in MB for automatic memory. Least recently seen or used items are evicted first; pins never expire. |
 | `nihilanth.defaultCount` | `5` | Default number of items generated for array presets. |
 | `nihilanth.maxDocumentKB` | `512` | Upper file size limit (in KB) for automatic AST observation. |
 | `nihilanth.excludedFolders` | `["node_modules", ".git", "dist", "out", "build", "coverage"]` | Folders excluded from capture. |
@@ -222,10 +222,11 @@ Configure Nihilanth in your VS Code settings (`settings.json`):
 
 ## 🛡️ Privacy &amp; Storage Architecture
 
-- **Local Storage Only**: Memory entries are stored in VS Code's local extension `globalStorage` as versioned JSON.
+- **Local Storage Only**: Memory entries are stored unencrypted in VS Code's local extension `globalStorage` as a versioned, append-only JSON Lines log (`memory-v2.jsonl`). Older `memory-v1.json` databases are migrated automatically and kept as `memory-v1.json.migrated`.
 - **Isolated from Source Control**: History is never committed to Git, workspace files, or Settings Sync.
-- **Concurrency Safe**: Locked atomic writes ensure safety across multiple open VS Code windows.
-- **Secret Safeguards**: Files matching `.env`, `.env.*`, or excluded paths are never scanned or indexed.
+- **Concurrency Safe**: Locked appends and atomic compaction keep the log consistent across multiple open VS Code windows. A damaged database is never overwritten; Nihilanth offers to move it aside and start fresh.
+- **Secret Safeguards (best effort)**: Only JS/TS/JSX/TSX documents are observed, and excluded folders and files are skipped. Declarations and fragments that look like credentials (private keys, well-known token formats such as `sk-…`, `ghp_…`, `AKIA…`, or a string literal assigned to names like `apiKey`, `password`, `token`) are not captured. This is a heuristic — remembered code can be offered in other projects, so pause capture (or add exclusions) for sensitive codebases.
+- **Untrusted Workspaces**: Automatic capture is paused until you trust the workspace; everything else keeps working.
 - **Management Controls**:
   - `Nihilanth Toolbox: Manage Memory and Snippets` — Browse, filter, pin, or delete stored entries.
   - `Nihilanth Toolbox: Pause / Resume Code Capture` — Temporarily suspend code observation.

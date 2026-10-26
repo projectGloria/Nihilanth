@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Store memory as an append-only log (`memory-v2.jsonl`) instead of rewriting the whole database on every capture, which stalled the extension host as history grew. Existing `memory-v1.json` data migrates automatically.
+- Keep one live version per declaration while you edit instead of a new history entry per typing pause; removed code still goes to history. Eviction is now truly least-recently-used: seeing or accepting an entry refreshes it.
+- Fix slash commands and recall silently turning off for the rest of a file after a regex such as `/\/*$/` or a template literal containing `/*`.
+- Stop writing to disk and re-parsing the document on every keystroke in completion paths.
+- Skip whole-document replacements and removals over 16 KB as "Removed" fragments.
+- Skip capture of code that looks like credentials, and pause capture in untrusted workspaces.
+- Offer to move a damaged memory database aside instead of disabling recall silently.
+- `--edge=boundary` now emits `0`, `-1`, and the safe-integer limits; generated users get matching names and emails.
+- Keep pending removals when settings change, parse `/data from` types with the document's real file kind, and release closed previews.
+
 ## 0.1.5
 
 - Add a matching dragon-head extension icon and clickable bottom-right status-bar icon.

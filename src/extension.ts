@@ -5,7 +5,7 @@ import { parseDataRequest, parseDirective, commandNames } from './directives';
 import { formatLiteral, generate, Generator, presets } from './generator';
 import { MemoryEntry, searchEntries } from './model';
 import { uniqueRecallEntries } from './recall';
-import { MemoryStore } from './storage';
+import { DamagedMemoryError, MemoryStore } from './storage';
 import { insideStringOrComment, parseLiteral } from './syntax';
 import { transform, Transform, transforms } from './transforms';
 
@@ -36,9 +36,27 @@ export async function activate(context: vscode.ExtensionContext) {
   let suggestTimer: ReturnType<typeof setTimeout> | undefined;
   const config = () => vscode.workspace.getConfiguration('nihilanth');
   const register = (name: string, fn: (...args: any[]) => unknown) => context.subscriptions.push(vscode.commands.registerCommand(`nihilanth.${name}`, guard(fn)));
+  // A damaged database used to make every completion request throw, silently disabling recall.
+  // Degrade to "no memory" and offer, once per session, to move the file aside.
+  let damagedNotified = false;
+  async function memory(): Promise<MemoryEntry[]> {
+    let stored: MemoryEntry[] = [];
+    try { stored = await store.list(); } catch (error) {
+      if (!(error instanceof DamagedMemoryError)) throw error;
+      report(error);
+      if (!damagedNotified) {
+        damagedNotified = true;
+        void vscode.window.showErrorMessage(`Nihilanth: ${error.message}`, 'Move aside and start fresh').then(async choice => {
+          if (choice) vscode.window.showInformationMessage(`Nihilanth: damaged memory saved as ${await store.quarantine(error.file)}`);
+        }).then(undefined, report);
+      }
+    }
+    // Unwritten removals are merged in memory instead of forcing a disk write on every keystroke.
+    return [...stored, ...capture.pendingEntries()];
+  }
 
   const preview = (code: string, language: string, detail: string) => new vscode.MarkdownString().appendText(detail).appendCodeblock(code, language);
-  function item(label: string, insertion: string | vscode.SnippetString, range: vscode.Range, filter: string, detail: string, code: string, language: string, order: number) {
+  function item(label: string, insertion: string | vscode.SnippetString, range: vscode.Range, filter: string, detail: string, code: string, language: string, order: number, entryId?: string) {
     const result = new vscode.CompletionItem({ label, detail: '  Nihilanth' }, vscode.CompletionItemKind.Event);
     result.insertText = insertion;
     result.range = range;
@@ -46,7 +64,8 @@ export async function activate(context: vscode.ExtensionContext) {
     result.sortText = String(order).padStart(6, '0');
     result.detail = detail;
     result.documentation = preview(code, language, detail);
-    result.command = { command: 'nihilanth.finish', title: 'Finish toolbox insertion' };
+    // Accepting a memory item passes its id so the store can refresh its LRU age.
+    result.command = { command: 'nihilanth.finish', title: 'Finish toolbox insertion', arguments: entryId ? [entryId] : [] };
     return result;
   }
 
@@ -85,15 +104,14 @@ export async function activate(context: vscode.ExtensionContext) {
         const currentOnly = /(?:^|\s)--project=current(?:\s|$)/.test(rawQuery);
         const query = rawQuery.replace(/(?:^|\s)--project=(?:current|all)(?=\s|$)/g, '').trim();
         const project = currentOnly ? vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.toString() ?? 'Loose files' : undefined;
-        await capture.flushRemoved();
-        const matches = searchEntries((await store.list()).filter(e => (!snippetOnly || e.pinned) &&
+        const matches = searchEntries((await memory()).filter(e => (!snippetOnly || e.pinned) &&
           (!automatic || (/^[A-Za-z_$][\w$]*$/.test(e.name) && e.name.toLowerCase().startsWith(typed.toLowerCase())))), query, project);
         const entries = uniqueRecallEntries(matches, doc.uri.toString(), capture.metadata(doc).project).slice(0, 40);
         if (token.isCancellationRequested) return;
         for (const e of entries) {
           const origin = `${e.pinned ? 'Pinned' : 'Memory'} • ${projectLabel(e.project)} • ${e.file} • ${new Date(e.capturedAt).toLocaleString()}`;
-          if (!snippetOnly && /^[A-Za-z_$][\w$]*$/.test(e.name)) results.push(item(`${e.name} — name`, e.name, range, directive ? filter : e.name, origin, e.text, e.language, results.length));
-          results.push(item(`${e.name} — ${e.snippet ? 'snippet' : 'code'}`, e.snippet ? new vscode.SnippetString(e.text) : e.text, range, directive ? filter : `${e.name} ${query}`, origin, e.text, e.language, results.length));
+          if (!snippetOnly && /^[A-Za-z_$][\w$]*$/.test(e.name)) results.push(item(`${e.name} — name`, e.name, range, directive ? filter : e.name, origin, e.text, e.language, results.length, e.id));
+          results.push(item(`${e.name} — ${e.snippet ? 'snippet' : 'code'}`, e.snippet ? new vscode.SnippetString(e.text) : e.text, range, directive ? filter : `${e.name} ${query}`, origin, e.text, e.language, results.length, e.id));
         }
       }
       if ((directive?.command === 'data' && !directive.argument.trim()) || (!directive && !manual?.onlyRecall && !filter)) {
@@ -116,7 +134,7 @@ export async function activate(context: vscode.ExtensionContext) {
             const request = parseDataRequest(argument, count);
             const text = doc.getText();
             const safeSource = text.slice(0, doc.offsetAt(new vscode.Position(position.line, directive.start))) + text.slice(doc.offsetAt(new vscode.Position(position.line, line.text.length)));
-            const code = generate(request, safeSource, defaultFormat);
+            const code = generate(request, safeSource, defaultFormat, doc.fileName);
             results.push(item(`Generate ${request.count} ${request.source}`, code, range, filter, `Nihilanth • ${request.seed === undefined ? 'random' : `seed ${request.seed}`} • ${request.format ?? defaultFormat}`, code, doc.languageId, 0));
           } catch (error) {
             const hint = item('Nihilanth — check command', directive.text, range, filter, error instanceof Error ? error.message : String(error), `${prefix}data users 5\n${prefix}data from User 5 --format=json --seed=42`, 'text', 0);
@@ -130,7 +148,10 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(output, capture, vscode.languages.registerCompletionItemProvider(selector, completionProvider, '/', ' ', '=', '-'));
 
   const suggest = () => { if (suggestTimer) clearTimeout(suggestTimer); suggestTimer = setTimeout(() => { void vscode.commands.executeCommand('editor.action.triggerSuggest'); }, 75); };
-  register('finish', () => { manual = undefined; });
+  register('finish', (id?: string) => {
+    manual = undefined;
+    if (typeof id === 'string' && !id.startsWith('pending:')) void store.touch(id).catch(report);
+  });
   register('trigger', suggest);
   const open = async (onlyRecall = false) => {
     const editor = vscode.window.activeTextEditor;
@@ -169,8 +190,7 @@ export async function activate(context: vscode.ExtensionContext) {
           const word = doc.getWordRangeAtPosition(at, /[A-Za-z_$][\w$]*/);
           const typed = word ? doc.getText(new vscode.Range(word.start, at)) : '';
           if (typed.length < 2 || insideStringOrComment(doc.getText(), doc.offsetAt(at) - 1, doc.fileName)) return;
-          await capture.flushRemoved();
-          const matches = (await store.list()).some(entry => /^[A-Za-z_$][\w$]*$/.test(entry.name) && entry.name.toLowerCase().startsWith(typed.toLowerCase()));
+          const matches = (await memory()).some(entry => /^[A-Za-z_$][\w$]*$/.test(entry.name) && entry.name.toLowerCase().startsWith(typed.toLowerCase()));
           if (matches && current()) {
             // triggerSuggest alone reuses the list opened at the first letter,
             // where recall had no results yet. Reopen to query every provider.
@@ -232,7 +252,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const typeName = selected.match(/^(?:export\s+)?(?:type|interface)\s+([\w$]+)/)?.[1] ?? (/^[A-Za-z_$][\w$]*$/.test(selected) ? selected : undefined);
     const generator = new Generator();
     const count = Number(input);
-    const value = typeName ? generator.fromType(editor.document.getText(), typeName, count) : Array.from({ length: count }, (_, i) => generator.example(parseLiteral(selected), i));
+    const value = typeName ? generator.fromType(editor.document.getText(), typeName, count, editor.document.fileName) : Array.from({ length: count }, (_, i) => generator.example(parseLiteral(selected), i));
     const code = formatLiteral(value, editor.document.languageId.startsWith('json') ? 'json' : 'js');
     const choice = await vscode.window.showQuickPick([
       { label: 'Copy generated data', action: 'copy', description: 'Keep the selected source' },
@@ -260,7 +280,9 @@ export async function activate(context: vscode.ExtensionContext) {
   }, { providedCodeActionKinds: [actionKind] }));
 
   const virtual = new Map<string, string>();
-  context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('nihilanth-preview', { provideTextDocumentContent: uri => virtual.get(uri.toString()) ?? '' }));
+  context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('nihilanth-preview', { provideTextDocumentContent: uri => virtual.get(uri.toString()) ?? '' }),
+    // Previews hold full entry text; release it once the preview document is closed.
+    vscode.workspace.onDidCloseTextDocument(d => { if (d.uri.scheme === 'nihilanth-preview') virtual.delete(d.uri.toString()); }));
   register('manage', async () => {
     const picker = vscode.window.createQuickPick<vscode.QuickPickItem & { entry: MemoryEntry }>();
     picker.title = 'Memory & snippets — all projects';
@@ -269,7 +291,8 @@ export async function activate(context: vscode.ExtensionContext) {
     const currentProject = editor ? vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.toString() ?? 'Loose files' : undefined;
     let currentOnly = false;
     if (currentProject) picker.buttons = [{ iconPath: new vscode.ThemeIcon('folder'), tooltip: 'Toggle all projects / current project' }];
-    const entries = await store.list();
+    // Unwritten removals cannot be deleted or unpinned yet; they appear here once the idle write lands.
+    const entries = (await memory()).filter(e => !e.id.startsWith('pending:'));
     const update = () => {
       picker.title = `Memory & snippets — ${currentOnly ? 'current project' : 'all projects'}`;
       picker.items = searchEntries(entries, picker.value, currentOnly ? currentProject : undefined).slice(0, 200).map(entry => ({ entry,

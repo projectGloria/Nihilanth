@@ -7,8 +7,13 @@ const words = ['cedar', 'ocean', 'amber', 'river', 'meadow', 'silver', 'violet',
 const singlePresets: Record<string, string> = { user: 'users', product: 'products', name: 'names', email: 'emails', id: 'ids', number: 'numbers', date: 'dates', boolean: 'booleans', string: 'strings' };
 export const presets = ['users', 'products', 'names', 'emails', 'ids', 'numbers', 'dates', 'booleans', 'strings', ...Object.keys(singlePresets)];
 
+// The extremes `--edge=boundary` promises: zero, negatives, and the safe-integer limits.
+const boundaryNumbers = [0, -1, Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
+
 export class Generator {
   private state: number;
+  // Name picked per record index, so a record's email matches its name instead of an unrelated one.
+  private recordNames = new Map<number, string>();
   private readonly reference: number;
   constructor(seed?: number, private edge?: string) {
     this.state = (seed ?? Math.floor(Math.random() * 0xffffffff)) >>> 0;
@@ -17,16 +22,20 @@ export class Generator {
   random(): number { this.state = (Math.imul(1664525, this.state) + 1013904223) >>> 0; return this.state / 0x100000000; }
   int(min = 0, max = 100): number { return this.edge === 'boundary' ? (this.random() < .5 ? min : max) : Math.floor(this.random() * (max - min + 1)) + min; }
   pick<T>(values: readonly T[]): T { return values[this.int(0, values.length - 1)]; }
+  number(min = 0, max = 100): number {
+    // Not pick(): under the boundary edge pick() itself only reaches the first and last element.
+    return this.edge === 'boundary' ? boundaryNumbers[Math.floor(this.random() * boundaryNumbers.length)] : this.int(min, max);
+  }
   field(key: string, index: number, kind: 'string' | 'number' | 'boolean' = 'string'): Literal {
-    if (kind === 'number') return this.int(0, 100);
+    if (kind === 'number') return this.number();
     if (kind === 'boolean') return this.random() >= .5;
     if (this.edge === 'empty') return '';
     if (this.edge === 'long') return 'x'.repeat(1024);
     const lower = key.toLowerCase();
-    if (/email/.test(lower)) return `${this.pick(names).toLowerCase()}.${index + 1}@example.com`;
+    if (/email/.test(lower)) return `${(this.recordNames.get(index) ?? this.pick(names)).toLowerCase()}.${index + 1}@example.com`;
     if (/^(id|uuid)$|Id$|_id$/.test(key)) return `id-${index + 1}-${this.int(1000, 9999)}`;
     if (/date|createdat|updatedat|timestamp/.test(lower)) return new Date(this.reference - this.int(0, 365) * 86400000).toISOString();
-    if (/name/.test(lower)) return this.pick(names);
+    if (/name/.test(lower)) { const name = this.pick(names); this.recordNames.set(index, name); return name; }
     if (/url|website/.test(lower)) return `https://example.com/${this.pick(words)}`;
     if (/phone/.test(lower)) return `+1-202-555-${String(this.int(100, 199)).padStart(4, '0')}`;
     return `${this.pick(words)}-${index + 1}`;
@@ -40,7 +49,7 @@ export class Generator {
     const values = Array.from({ length: count }, (_, i): Literal => {
       switch (name) {
         case 'users': return { id: i + 1, name: this.field('name', i), email: this.field('email', i), active: this.field('active', i, 'boolean') };
-        case 'products': return { id: i + 1, name: `${this.pick(words)} product`, price: this.int(1, 10000) / 100, inStock: this.field('inStock', i, 'boolean') };
+        case 'products': return { id: i + 1, name: `${this.pick(words)} product`, price: this.edge === 'boundary' ? this.number() : this.int(1, 10000) / 100, inStock: this.field('inStock', i, 'boolean') };
         case 'numbers': return this.field('number', i, 'number');
         case 'booleans': return this.field('boolean', i, 'boolean');
         case 'names': return this.field('name', i);
@@ -61,8 +70,9 @@ export class Generator {
     return this.field(key, index, typeof value as 'string' | 'number' | 'boolean');
   }
 
-  fromType(text: string, typeName: string, count: number): Literal {
-    const source = sourceFile(text);
+  fromType(text: string, typeName: string, count: number, filename = 'input.ts'): Literal {
+    // Parse with the document's real kind: in a .tsx file, JSX parsed as plain TS is error-recovered unpredictably.
+    const source = sourceFile(text, filename);
     const types = new Map<string, ts.TypeAliasDeclaration | ts.InterfaceDeclaration>();
     for (const statement of source.statements) {
       if (ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement)) types.set(statement.name.text, statement);
@@ -122,8 +132,8 @@ export function formatLiteral(value: Literal, format: 'json' | 'js' = 'js'): str
   return json.replace(/^(\s*)"([A-Za-z_$][\w$]*)":/gm, (_, indent: string, key: string) => `${indent}${key === '__proto__' ? '["__proto__"]' : key}:`);
 }
 
-export function generate(request: DataRequest, documentText = '', defaultFormat: 'json' | 'js' = 'js'): string {
+export function generate(request: DataRequest, documentText = '', defaultFormat: 'json' | 'js' = 'js', filename = 'input.ts'): string {
   const generator = new Generator(request.seed, request.edge);
-  const value = request.fromType ? generator.fromType(documentText, request.source, request.count) : generator.preset(request.source, request.count);
+  const value = request.fromType ? generator.fromType(documentText, request.source, request.count, filename) : generator.preset(request.source, request.count);
   return formatLiteral(value, request.format ?? defaultFormat);
 }

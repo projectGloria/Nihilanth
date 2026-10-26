@@ -1,8 +1,27 @@
 import ts from 'typescript';
 
+// The typing listener and the completion provider parse the same document text on every keystroke.
+// SourceFiles are immutable, so a few recent parses can be shared; string equality is far cheaper than a parse.
+const parsed: { filename: string; text: string; source: ts.SourceFile }[] = [];
 export function sourceFile(text: string, filename = 'input.ts'): ts.SourceFile {
-  return ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true,
+  const hit = parsed.findIndex(p => p.filename === filename && p.text === text);
+  if (hit >= 0) { const [entry] = parsed.splice(hit, 1); parsed.unshift(entry); return entry.source; }
+  const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true,
     /\.jsx$/.test(filename) ? ts.ScriptKind.JSX : /\.tsx$/.test(filename) ? ts.ScriptKind.TSX : /\.js$/.test(filename) ? ts.ScriptKind.JS : ts.ScriptKind.TS);
+  parsed.unshift({ filename, text, source });
+  parsed.length = Math.min(parsed.length, 4);
+  return source;
+}
+
+const identifierChar = /[\w$]/;
+// True when [start, end) removes at least one whole identifier. Removing a single character
+// from the middle of a word cannot delete a declaration's name, so the caller can skip a full parse.
+export function removesWholeIdentifier(text: string, start: number, end: number): boolean {
+  for (const match of text.slice(start, end).matchAll(/[A-Za-z_$][\w$]*/g)) {
+    const from = start + match.index, to = from + match[0].length;
+    if (!identifierChar.test(text[from - 1] ?? '') && !identifierChar.test(text[to] ?? '')) return true;
+  }
+  return false;
 }
 
 export interface Declaration { name: string; text: string; start: number; end: number; nameStart: number; nameEnd: number }
@@ -86,20 +105,24 @@ export function parseLiteral(text: string): Literal {
 
 export function insideStringOrComment(text: string, offset: number, filename = 'input.ts'): boolean {
   const source = sourceFile(text, filename);
-  let inside = false;
-  function visit(node: ts.Node) {
-    if (offset < node.getFullStart() || offset > node.end) return;
-    if ((ts.isStringLiteralLike(node) || ts.isRegularExpressionLiteral(node) || node.kind === ts.SyntaxKind.TemplateHead || node.kind === ts.SyntaxKind.TemplateMiddle || node.kind === ts.SyntaxKind.TemplateTail || ts.isJsxText(node)) && offset > node.getStart(source) && offset < node.end) inside = true;
-    ts.forEachChild(node, visit);
+  // Descend to the innermost token whose full span (leading trivia included) holds offset. getChildren()
+  // yields real tokens, so regexes and template parts follow the parser — a context-free scanner reads
+  // `/\/*$/` as division plus an unterminated block comment and blanks out the rest of the file.
+  let node: ts.Node = source;
+  for (;;) {
+    const child = node.getChildren(source).find(c => offset >= c.getFullStart() && offset < c.end);
+    if (!child) break;
+    node = child;
   }
-  visit(source);
-  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, text);
-  while (scanner.scan() !== ts.SyntaxKind.EndOfFileToken) {
-    const start = scanner.getTokenPos();
-    const end = scanner.getTextPos();
-    const token = scanner.getToken();
-    if ((token === ts.SyntaxKind.MultiLineCommentTrivia || token === ts.SyntaxKind.SingleLineCommentTrivia) && offset >= start && offset < end) inside = true;
-    if (start > offset) break;
+  const start = node.getStart(source);
+  if (offset < start) {
+    // Same-line comments are *trailing* ranges of the previous token; getLeadingCommentRanges skips them.
+    const pos = node.getFullStart();
+    return [...ts.getTrailingCommentRanges(text, pos) ?? [], ...ts.getLeadingCommentRanges(text, pos) ?? []]
+      .some(r => offset >= r.pos && offset < r.end);
   }
-  return inside;
+  const k = node.kind;
+  const stringish = ts.isStringLiteralLike(node) || k === ts.SyntaxKind.RegularExpressionLiteral || k === ts.SyntaxKind.TemplateHead ||
+    k === ts.SyntaxKind.TemplateMiddle || k === ts.SyntaxKind.TemplateTail || k === ts.SyntaxKind.JsxText;
+  return stringish && offset > start && offset < node.end;
 }

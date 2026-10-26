@@ -44,7 +44,8 @@
   "capabilities": {
     "virtualWorkspaces": false,
     "untrustedWorkspaces": {
-      "supported": true
+      "supported": "limited",
+      "description": "Automatic code capture is paused in untrusted workspaces. Existing memory, snippets, data generation, and transformations keep working."
     }
   },
   "activationEvents": [
