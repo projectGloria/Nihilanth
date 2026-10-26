@@ -1,71 +1,195 @@
+<div align="center">
+
+<img src="media/icon.png" alt="Nihilanth Toolbox Logo" width="120" height="120" />
+
 # Nihilanth Toolbox
 
-An offline VS Code toolbox that works where you write code. Recall removed code, reuse snippets, generate dummy data, and transform selections. No AI account, network service, or subscription is required.
+**An offline, editor-first developer toolbox crafted for VS Code**
 
-## Install
+*Recall removed code, reuse snippets, generate dummy data, and transform selections — directly at your cursor.*
 
-1. In VS Code, open **Extensions** (`Ctrl+Shift+X`).
-2. Open the **…** menu and choose **Install from VSIX…**.
-3. Select `nihilanth-toolbox-0.1.5.vsix` from this folder.
+<p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-00B074.svg?style=flat-square" alt="License: MIT" /></a>
+  <img src="https://img.shields.io/badge/Platform-VS%20Code%20v1.100%2B-007ACC.svg?style=flat-square&logo=visualstudiocode" alt="VS Code v1.100+" />
+  <img src="https://img.shields.io/badge/Version-0.1.5-blue.svg?style=flat-square" alt="Version 0.1.5" />
+  <img src="https://img.shields.io/badge/TypeScript-Ready-3178C6.svg?style=flat-square&logo=typescript" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Telemetry-Disabled-success.svg?style=flat-square" alt="Telemetry: Disabled" />
+  <img src="https://img.shields.io/badge/AI%20Dependencies-None-8A2BE2.svg?style=flat-square" alt="AI: None" />
+</p>
 
-Alternatively, run:
+---
 
+<p>
+  <a href="#-about-nihilanth-toolbox">About</a> •
+  <a href="#-key-features">Features</a> •
+  <a href="#-visual-tour">Visual Tour</a> •
+  <a href="#-installation--quick-start">Installation</a> •
+  <a href="#-slash-commands-reference">Slash Commands</a> •
+  <a href="#-dummy-data--type-mocking">Dummy Data</a> •
+  <a href="#-selection-transformations">Transformations</a> •
+  <a href="#-configuration--storage">Configuration</a> •
+  <a href="#-building--development">Building</a> •
+  <a href="#-icon--design-philosophy">Design</a> •
+  <a href="#-license">License</a>
+</p>
+
+<picture>
+  <img
+    width="880"
+    src="media/completion-preview.png"
+    alt="Nihilanth Toolbox Interface and Suggestions Preview"
+  />
+</picture>
+
+</div>
+
+---
+
+## 🐉 About Nihilanth Toolbox
+
+**Nihilanth Toolbox** is an offline, editor-first productivity toolkit built specifically for VS Code developers. It lives right inside your coding flow—operating entirely at your cursor through intuitive slash commands, context actions, and automatic memory.
+
+Modern developer tooling increasingly demands cloud accounts, external API keys, telemetry pipelines, and recurring subscriptions. Nihilanth takes the opposite approach: **100% local, private, and deterministic.**
+
+- 🔒 **Zero Network & Complete Privacy**: Runs entirely on your machine. No telemetry pings, no cloud models, no API keys, and no subscriptions.
+- ⚡ **Cursor-First Workflow**: Invoke commands by typing `/` on a line or pressing `Ctrl+Alt+Space` without switching windows or opening web browsers.
+- 🕒 **Automatic Code Memory**: Seamlessly observes your workspace and preserves declarations and deleted code fragments so you never lose lost work.
+- 🎲 **Instant Test Mocking**: Generate structured arrays, objects, and TypeScript type-driven mock datasets in milliseconds.
+- 🛡️ **Safe & Non-Destructive**: Preview generated code and declarations before inserting; all actions cleanly integrate with native VS Code **Undo**.
+
+---
+
+## ✨ Key Features
+
+<table>
+  <tr>
+    <td width="50%">
+      <h3>🕒 Automatic Code Memory</h3>
+      <p>Passively captures declarations and deleted code fragments (&gt;24 chars) across JS/TS/JSX/TSX files. Recalls both identifier names and full implementations starting from just 2 typed letters.</p>
+    </td>
+    <td width="50%">
+      <h3>📌 Cross-Project Snippet Pins</h3>
+      <p>Pin reusable blocks of code with custom aliases, tags, and dynamic VS Code placeholder syntax (<code>${1:param}</code>). Pinned items persist across projects and never expire.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>🎲 Deterministic Dummy Data</h3>
+      <p>Generate arrays or single instances of common data models (users, products, emails, dates, numbers) with seed reproducibility (<code>--seed=42</code>) and edge-case testing modes.</p>
+    </td>
+    <td width="50%">
+      <h3>🧬 TypeScript Type Mocking</h3>
+      <p>Parse local TypeScript interfaces, types, unions, and tuples directly at your cursor. Run <code>/data from User 5</code> to produce structurally matched mock JSON or JS objects.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>🔄 Selection Transformations</h3>
+      <p>Instantly convert between JSON and JS object literals, generate TypeScript types from raw JSON, deduplicate primitive arrays, and switch naming cases (camel, Pascal, snake, kebab).</p>
+    </td>
+    <td width="50%">
+      <h3>🐉 Nihilanth Dragon Theme</h3>
+      <p>Includes a dedicated status-bar launcher and an optional bespoke dragon product icon theme for custom suggestion badges.</p>
+    </td>
+  </tr>
+</table>
+
+---
+
+## 📸 Visual Tour
+
+### 1. Cursor-Native Suggestions &amp; Auto-Recall
+Type two letters of any previously written identifier (even after deleting it) to summon its name or complete code body right alongside standard language suggestions.
+
+<p align="center">
+  <img src="media/completion-preview.png" alt="Nihilanth completion list and details preview" width="800" />
+</p>
+
+### 2. Status-Bar Launcher &amp; Product Icon Theme
+Quickly trigger toolbox actions via the bottom-right status bar dragon or enable the **Nihilanth Dragon** product icon theme for custom Event completion badges.
+
+<p align="center">
+  <img src="media/dragon-preview.png" alt="Nihilanth status bar and icon theme preview" width="360" />
+</p>
+
+### 3. Fast In-Editor Slash Commands
+Type `/` on a fresh line in JavaScript, TypeScript, or JSON files to access recall, pinned snippets, and data generation commands:
+
+```text
+/recall authService
+/snippet fetch
+/data users 5 --format=json
+/data from Order 3 --format=json --seed=101
+```
+
+---
+
+## 🚀 Installation &amp; Quick Start
+
+### Installing the VSIX Package
+
+#### Method A: Via VS Code GUI
+1. Open the **Extensions** view in VS Code (`Ctrl+Shift+X` or `Cmd+Shift+X`).
+2. Click the **…** (Views and More Actions) menu in the top-right corner.
+3. Select **Install from VSIX…**.
+4. Choose `nihilanth-toolbox-0.1.5.vsix` from this folder.
+
+#### Method B: Via PowerShell / Terminal
 ```powershell
 code --install-extension .\nihilanth-toolbox-0.1.5.vsix
 ```
 
-The extension page and the bottom-right status bar use the same dragon head. Click the status-bar dragon to open toolbox suggestions at the cursor.
+### Enabling the Dragon Product Icon Theme (Optional)
 
-For the same dragon beside suggestions, run **Preferences: Product Icon Theme** and select **Nihilanth Dragon**. VS Code assigns suggestion icons by completion kind, so this theme replaces the Event icon used by Nihilanth; other Event-type suggestions also receive the dragon. Other product icons fall back to VS Code's defaults. Choosing a different product icon theme restores its suggestion icons; the status-bar dragon remains available.
+To display the teal dragon head beside toolbox suggestions:
+1. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
+2. Run **Preferences: Product Icon Theme**.
+3. Select **Nihilanth Dragon**.
 
-## Start at your cursor
+*(Note: Other product icons gracefully fall back to VS Code defaults; switching back to default restores default Event icons while retaining the status-bar dragon).*
 
-In a JavaScript, TypeScript, JSX, TSX, JSON, or JSONC editor, type `/` at the start of a dedicated line (indentation is fine). Choose a command, keep typing its arguments, then accept the desired suggestion. The suggestion's details show a code preview; VS Code's **Toggle Suggest Details** command shows or hides that preview.
+### Keyboard Shortcuts
 
-```text
-/recall exa
-/snippet fetch
-/data users 5
-/data number
-/data user --format=json
-/data from User 5 --format=json --seed=42
-```
+| Shortcut (Windows / Linux) | Shortcut (macOS) | Action |
+| :--- | :--- | :--- |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd> | <kbd>Cmd</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd> | Open toolbox suggestions at cursor (or selection menu when text is selected) |
+| `/` (at start of dedicated line) | `/` (at start of dedicated line) | Trigger slash command completion list |
+| <kbd>Esc</kbd> | <kbd>Esc</kbd> | Dismiss toolbox suggestions |
 
-**Ctrl+Alt+Space** (macOS: **Cmd+Alt+Space**) opens toolbox suggestions at the current word without requiring a slash command. With an active selection, the same shortcut opens selection actions instead. You can remap it in Keyboard Shortcuts. Normal language completions may appear alongside toolbox suggestions.
+---
 
-Remembered declarations appear automatically while typing a name in JS/TS editors, starting at two characters. Matching ignores case: after creating and deleting `const nihil = 42;`, typing `Ni` offers **nihil — name** (inserts `nihil`) and **nihil — code** (inserts `const nihil = 42;`). Accepting a suggestion replaces the current word and supports Undo. Automatic recall skips strings, comments, and regex literals. Matching memory opens suggestions even when normal quick suggestions are disabled.
+## ⚡ Slash Commands Reference
 
-Typing `/` on a dedicated line opens explicit toolbox commands. The extension does not modify text until you accept a result. Completed regex literals, comments, strings, paths, and division expressions are not commands. A partially typed regex that starts with a command name can briefly resemble a command; closing its slash dismisses toolbox results, and Escape dismisses suggestions at any point.
+Nihilanth commands are activated by typing `/` at the beginning of a dedicated line (leading indentation is supported). The extension evaluates suggestions dynamically as you type arguments.
 
-## Code memory
+### Command Table
 
-Opened JS/TS files are observed automatically, including unsaved documents. The extension stores declaration versions after a short idle period and captures meaningful deletions before their text disappears. It remembers named variables, functions, classes, interfaces, enums, and type aliases, plus removed fragments of at least 24 characters.
+| Command | Arguments | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `/recall` | `<query> [--project=current]` | Search stored identifiers, code, and removed declarations by name, tag, or path. | `/recall userAuth` |
+| `/snippet` | `<alias \| tag> [--project=current]` | Insert a pinned snippet across workspaces. Supports TabStop placeholders. | `/snippet fetch` |
+| `/data` | `<preset> [count] [flags]` | Generate synthetic test data from built-in schema presets. | `/data users 10 --format=json` |
+| `/data from` | `<Type> [count] [flags]` | Parse a local TypeScript type or interface and generate matching mock data. | `/data from User 5 --format=json` |
 
-Use `/recall exa` to search identifier names, code, tags, project names, and source paths. Results distinguish **name** from **code**, and show the project, file, and capture time. Accepting a **name** inserts only the identifier. Accepting **code** inserts the saved text at the cursor; it does not restore dependencies, import statements, or the original project context automatically.
+### Automatic Memory Recall
 
-Completion lists show one name and one code suggestion per identifier, selecting the latest complete declaration and preferring the current file, then the current project. Older versions remain available in the memory manager. History is shared across your local projects and persists across VS Code restarts. Add `--project=current` to a recall or snippet query to filter it to the current project, for example `/recall exa --project=current`. The memory manager also has a folder button to toggle all projects / current project. There is no time expiry. The default **100 MB** cap evicts the oldest automatic entries; pins are exempt. Capture begins when this extension is active and a document is observed—it cannot recover previously deleted code it never saw.
+- **Name vs Code**: Each recognized declaration offers both `identifier — name` (inserts just the identifier) and `identifier — code` (inserts the complete declaration).
+- **Two-Character Auto-Trigger**: Typing two characters of an identifier in JS/TS automatically displays memory suggestions—no slash required.
+- **Safety First**: Skipped inside strings, comments, and regex literals to avoid unwanted suggestions.
 
-For preview, copy, insertion, pinning, editing metadata, unpinning, or deletion, run **Nihilanth Toolbox: Manage Memory and Snippets** from the Command Palette. Administrative actions use small built-in pickers and inputs; everyday recall stays at your cursor. Use **Pause / Resume Code Capture** or **Clear Automatic History** for history controls. Clearing history preserves pins; subsequently observed code can be captured again.
+---
 
-## Pinned snippets
+## 🎲 Dummy Data &amp; Type Mocking
 
-Select code, right-click, and choose **Pin Selection as Snippet**. Give it an alias and optional comma-separated tags. Choose literal insertion or VS Code snippet placeholders, such as:
+### Built-in Presets
 
-```text
-fetch(${1:url}).then(response => response.json())$0
-```
-
-Find pinned code using `/snippet fetch`. Pins are available across projects and remain until explicitly deleted or unpinned.
-
-## Dummy data
-
-Plural presets generate arrays; singular presets generate one value or object by default:
-
-| Arrays | Single values / objects |
-| --- | --- |
+| Plural (Generates Array) | Singular (Generates Single Value / Object) |
+| :--- | :--- |
 | `users`, `products` | `user`, `product` |
 | `names`, `emails`, `ids` | `name`, `email`, `id` |
 | `numbers`, `dates`, `booleans`, `strings` | `number`, `date`, `boolean`, `string` |
+
+### Generation Options &amp; Edge Cases
 
 ```text
 /data emails 10
@@ -76,9 +200,16 @@ Plural presets generate arrays; singular presets generate one value or object by
 /data users --edge=empty
 ```
 
-Counts range from 1 to 1000; the default for arrays is five. `--format=json` preserves quoted JSON keys; `--format=js` emits JS/TS literals. A seed reproduces generated values, including dates, within this extension version. Without a seed, generation varies. `--edge=empty` produces an empty result collection, `--edge=long` uses long generated string fields, and `--edge=boundary` chooses numeric endpoints. These are explicit test-data modes, not inferred business constraints.
+- `--format=json`: Emits strict JSON with quoted keys.
+- `--format=js`: Emits native JavaScript / TypeScript object literals.
+- `--seed=<number>`: Creates deterministic, reproducible pseudo-random output.
+- `--edge=empty`: Generates an empty array.
+- `--edge=long`: Stretches string fields to boundary test limits.
+- `--edge=boundary`: Uses extreme numeric limits (0, negative, max safe integers).
 
-To generate from a local type, keep the declaration in the same file:
+### Type-Driven Generation from Local TypeScript Types
+
+Define your type or interface anywhere in the active file:
 
 ```ts
 type User = {
@@ -90,45 +221,109 @@ type User = {
 };
 ```
 
-Then type `/data from User 5 --format=json --seed=42` on a new line. Supported types include primitives, literals, unions, arrays, tuples, nested objects, optional properties (included in output), local aliases, and local interfaces. Field-name rules provide emails, names, IDs, URLs, phones, and ISO date strings; other values use generic samples. Types do not encode every business rule.
+On a new line, type:
 
-Imported types, generic declarations (except `Array<T>`), recursive types, interface inheritance, methods, index signatures, and runtime classes such as `Date` are not supported. Unsupported types show an explanation instead of fabricated data.
+```text
+/data from User 5 --format=json --seed=42
+```
 
-You can also select a local type name/declaration or a literal example object, then invoke **Generate Data from Selection**. Choose a count, then copy the result, insert it below the selection, or replace the selection. Example-based generation retains the literal's structure and generates values of matching primitive types.
+> [!NOTE]
+> Supported type constructs include primitives, literal unions, nested objects, tuples, optional fields, and `Array<T>`. Complex imported types, recursive types, and runtime classes like `Date` will provide a clear inline notice instead of fabricating incorrect schema values.
 
-## Selection transformations
+You can also highlight any type declaration or sample object literal and run **Nihilanth Toolbox: Generate Data from Selection** from the right-click menu.
 
-Select text and press the toolbox shortcut, right-click **Transform Selection**, or invoke the command directly:
+---
 
-- JSON ↔ supported JS object literals
-- Object keys, values, or entries
-- JSON → `type GeneratedType = …`
-- Deduplicate primitive arrays
-- camelCase, PascalCase, snake_case, and kebab-case
+## 🔄 Selection Transformations
 
-Transformations operate only on the selection and support Undo. Literal transformations parse data without executing code. Calls, arbitrary computed expressions, object methods, spreads, and variable references are rejected. No references are renamed when changing selected text's case. The generated type name is `GeneratedType`; rename it if that name already exists.
+Select any block of text, right-click, and choose **Transform Selection** (or press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd>):
 
-## Settings and storage
+| Transformation | Details |
+| :--- | :--- |
+| **JSON ↔ JS Object** | Seamlessly toggle between strict JSON format and clean JS object literals. |
+| **Extract Keys / Values / Entries** | Pull out object keys, values, or `[key, value]` pairs from selected objects. |
+| **JSON → TypeScript Type** | Automatically generate a typed `type GeneratedType = { ... }` interface from a JSON sample. |
+| **Deduplicate Array** | Remove duplicates from selected primitive lists or arrays. |
+| **Case Conversions** | Switch casing between `camelCase`, `PascalCase`, `snake_case`, and `kebab-case`. |
 
-Search Settings for **Nihilanth** to configure the prefix, default count, capture switch, storage cap, document size limit, and excluded folders/files. Capture skips `node_modules`, `.git`, `dist`, `out`, `build`, and `coverage` by default. The default maximum captured document size is 512 KB. Exclusions apply to future capture; existing history can be deleted using the memory manager.
+*All transformations operate purely on the selected text and are fully reversible via native Undo (`Ctrl+Z`).*
 
-Memory is stored as a versioned JSON database in VS Code's local extension global-storage directory. It is separate from your source files, does not enter Git or Settings Sync, and is shared between local windows through locked, atomic writes. Pinned records do not count against the automatic-history cap. The extension makes no network requests. Diagnostic failures appear in the **Nihilanth Toolbox** Output channel.
+---
 
-Version 0.1 targets desktop VS Code with local files and untitled editors. Remote and virtual workspaces are deferred.
+## ⚙️ Configuration &amp; Storage
 
-## Develop and verify
+### User Settings
 
-Use Node.js 22 or later:
+Configure Nihilanth in your VS Code settings under `nihilanth.*`:
+
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| `nihilanth.prefix` | `"/"` | The character sequence used to trigger slash commands on dedicated lines. |
+| `nihilanth.captureEnabled` | `true` | Automatically record observed declarations and deleted fragments. |
+| `nihilanth.historyLimitMB` | `100` | Storage cap in MB for automatic memory. Oldest items are evicted; pins never expire. |
+| `nihilanth.defaultCount` | `5` | Default number of items generated for array presets. |
+| `nihilanth.maxDocumentKB` | `512` | Upper file size limit (in KB) for automatic observation. |
+| `nihilanth.excludedFolders` | `["node_modules", ".git", "dist", "out", "build", "coverage"]` | Folders excluded from capture. |
+| `nihilanth.excludedFiles` | `[".env", ".env.local"]` | Specific files ignored to safeguard secrets. |
+
+### Memory &amp; Storage Architecture
+
+- **Global Extension Storage**: Stored as a versioned JSON database in VS Code's local global-storage folder (`globalStorage`).
+- **Completely Isolated**: History never enters your Git repositories, workspace files, or Settings Sync.
+- **Concurrency Safe**: Utilizes locked, atomic file writes across multiple VS Code windows.
+- **Management Palette**:
+  - `Nihilanth Toolbox: Manage Memory and Snippets` — Browse, filter, pin, edit, or purge entries.
+  - `Nihilanth Toolbox: Pause / Resume Code Capture` — Temporarily halt automatic observation.
+  - `Nihilanth Toolbox: Clear Automatic History` — Wipe unpinned history while keeping saved snippets intact.
+
+---
+
+## 🛠️ Building &amp; Development
+
+### Prerequisites
+
+- **Node.js** (v22 or later)
+- **VS Code** (v1.100 or later)
+
+### Build Commands
 
 ```powershell
+# Install dependencies
 npm ci
+
+# Run core test suite
 npm test
+
+# Run end-to-end integration tests (launches isolated VS Code instance)
 npm run test:integration
+
+# Build and package VSIX distribution
 npm run package
 ```
 
-Press **F5** in this workspace to build and launch an Extension Development Host. Integration tests launch an isolated VS Code profile, leaving your regular profile and extension memory untouched. On Windows they use the installed VS Code executable when available; set `VSCODE_EXECUTABLE_PATH` to override it. On other platforms the test runner downloads an isolated stable VS Code unless an executable is supplied.
+### Debugging with F5 Host
 
-The core modules cover parsing, generation, transformations, ranking, and persistent storage. Integration tests exercise the actual VS Code completion API, native suggestion acceptance, deletions, selected edits, Undo, and pinned snippets.
+Press <kbd>F5</kbd> in this workspace to launch an isolated **Extension Development Host**. Integration tests run against their own clean environment without modifying your local profile or existing history.
 
-Future tools: scratchpads, debug bookmarks, resume notes, project recipes, and repeat-with-variation editing.
+---
+
+## 🎨 Icon &amp; Design Philosophy
+
+<p align="center">
+  <img src="media/icon.png" alt="Nihilanth Icon Close-up" width="96" height="96" />
+</p>
+
+> *"A sharp, luminous teal dragon head engineered for developers who value speed, privacy, and editor-native autonomy."*
+
+- **Teal Silhouette (`#2dd4bf`)**: High-contrast geometric vector crafted for maximum clarity across VS Code themes, completion popups, and the status bar.
+- **Embedded Font Glyph**: Lightweight TrueType icon (`media/nihilanth-icons.ttf`) for instant native rendering in VS Code product themes without bitmap blur.
+- **Quiet Utility**: Built to remain unobtrusive until summoned at your cursor.
+
+---
+
+## 📜 License
+
+Distributed under the **[MIT License](LICENSE)**.
+
+Copyright &copy; 2026 Nihil.
+All rights reserved.
