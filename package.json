@@ -13,6 +13,11 @@
     "url": "https://github.com/projectGloria/Nihilanth/issues"
   },
   "homepage": "https://github.com/projectGloria/Nihilanth#readme",
+  "galleryBanner": {
+    "color": "#0a0f1d",
+    "theme": "dark"
+  },
+  "pricing": "Free",
   "keywords": [
     "snippet",
     "snippets",
@@ -21,14 +26,16 @@
     "offline",
     "typescript",
     "transform",
-    "productivity"
+    "productivity",
+    "slash commands"
   ],
   "engines": {
     "vscode": "^1.100.0"
   },
   "categories": [
-    "Other",
-    "Snippets"
+    "Snippets",
+    "Testing",
+    "Other"
   ],
   "main": "./dist/extension.js",
   "extensionKind": [
