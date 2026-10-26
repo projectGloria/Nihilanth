@@ -1,0 +1,16 @@
+{
+  "fonts": [
+    {
+      "id": "nihilanth-dragon-font",
+      "src": [{ "path": "./nihilanth-icons.ttf", "format": "truetype" }],
+      "weight": "normal",
+      "style": "normal"
+    }
+  ],
+  "iconDefinitions": {
+    "symbol-event": {
+      "fontId": "nihilanth-dragon-font",
+      "fontCharacter": "\\e001"
+    }
+  }
+}

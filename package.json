@@ -1,0 +1,207 @@
+{
+  "name": "nihilanth-toolbox",
+  "displayName": "Nihilanth Toolbox",
+  "description": "An offline, editor-first toolbox: slash commands, code memory, snippets, dummy data, and transformations.",
+  "version": "0.1.5",
+  "publisher": "nihil-local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other",
+    "Snippets"
+  ],
+  "main": "./dist/extension.js",
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "scripts": {
+    "compile": "tsc -p .",
+    "build": "npm run compile && node scripts/build.mjs",
+    "test": "npm run compile && node --test out/test/core.test.js",
+    "test:integration": "npm run build && node scripts/integration.mjs",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package --no-dependencies --allow-missing-repository --out nihilanth-toolbox-0.1.5.vsix"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "nihilanth.open",
+        "title": "Open at Cursor",
+        "category": "Nihilanth Toolbox"
+      },
+      {
+        "command": "nihilanth.recall",
+        "title": "Recall Code at Cursor",
+        "category": "Nihilanth Toolbox"
+      },
+      {
+        "command": "nihilanth.pin",
+        "title": "Pin Selection as Snippet",
+        "category": "Nihilanth Toolbox"
+      },
+      {
+        "command": "nihilanth.transform",
+        "title": "Transform Selection",
+        "category": "Nihilanth Toolbox"
+      },
+      {
+        "command": "nihilanth.generateType",
+        "title": "Generate Data from Selection",
+        "category": "Nihilanth Toolbox"
+      },
+      {
+        "command": "nihilanth.manage",
+        "title": "Manage Memory and Snippets",
+        "category": "Nihilanth Toolbox"
+      },
+      {
+        "command": "nihilanth.toggleCapture",
+        "title": "Pause / Resume Code Capture",
+        "category": "Nihilanth Toolbox"
+      },
+      {
+        "command": "nihilanth.clearHistory",
+        "title": "Clear Automatic History",
+        "category": "Nihilanth Toolbox"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "nihilanth.open",
+        "key": "ctrl+alt+space",
+        "mac": "cmd+alt+space",
+        "when": "editorTextFocus && !editorReadonly"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "nihilanth.open",
+          "group": "nihilanth@1"
+        },
+        {
+          "command": "nihilanth.pin",
+          "when": "editorHasSelection",
+          "group": "nihilanth@2"
+        },
+        {
+          "command": "nihilanth.transform",
+          "when": "editorHasSelection",
+          "group": "nihilanth@3"
+        },
+        {
+          "command": "nihilanth.generateType",
+          "when": "editorHasSelection",
+          "group": "nihilanth@4"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Nihilanth Toolbox",
+      "properties": {
+        "nihilanth.prefix": {
+          "type": "string",
+          "default": "/",
+          "minLength": 1,
+          "maxLength": 8,
+          "pattern": "^[^\\s\\w]+$",
+          "description": "Typed command prefix, recognized at the start of an otherwise dedicated line."
+        },
+        "nihilanth.captureEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically remember observed JS/TS declarations and removed fragments."
+        },
+        "nihilanth.historyLimitMB": {
+          "type": "number",
+          "default": 100,
+          "minimum": 1,
+          "maximum": 1024,
+          "description": "Automatic history size cap. Oldest unpinned entries are evicted; pins never expire."
+        },
+        "nihilanth.excludedFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules",
+            ".git",
+            "dist",
+            "out",
+            "build",
+            "coverage"
+          ],
+          "description": "Folder names excluded from automatic capture."
+        },
+        "nihilanth.excludedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".env",
+            ".env.local"
+          ],
+          "description": "Exact file names excluded from automatic capture."
+        },
+        "nihilanth.defaultCount": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Default generated record count."
+        },
+        "nihilanth.maxDocumentKB": {
+          "type": "number",
+          "default": 512,
+          "minimum": 1,
+          "description": "Skip automatic capture for documents larger than this size."
+        }
+      }
+    },
+    "icons": {
+      "nihilanth-dragon": {
+        "description": "Nihilanth dragon head",
+        "default": {
+          "fontPath": "./media/nihilanth-icons.ttf",
+          "fontCharacter": "\\e001"
+        }
+      }
+    },
+    "productIconThemes": [
+      {
+        "id": "nihilanth-dragon",
+        "label": "Nihilanth Dragon",
+        "path": "./media/dragon-product-icon-theme.json"
+      }
+    ]
+  },
+  "overrides": {
+    "@azure/msal-node": "7.1.1"
+  },
+  "dependencies": {
+    "typescript": "6.0.3",
+    "proper-lockfile": "4.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.100.0",
+    "@types/proper-lockfile": "^4.1.4",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "^0.25.0"
+  },
+  "icon": "media/icon.png"
+}
