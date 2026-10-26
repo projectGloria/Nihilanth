@@ -126,7 +126,15 @@ Type `/` on a fresh line in JavaScript, TypeScript, or JSON files to access reca
 
 ## 🚀 Installation &amp; Quick Start
 
-### Installing the VSIX Package
+### Installing from VS Code Marketplace
+
+Search for **Nihilanth Toolbox** in the Extensions view (`Ctrl+Shift+X` / `Cmd+Shift+X`), or install via terminal:
+
+```shell
+code --install-extension Nihilnia.nihilanth-toolbox
+```
+
+### Installing the VSIX Package Directly
 
 #### Method A: Via VS Code GUI
 1. Open the **Extensions** view in VS Code (`Ctrl+Shift+X` or `Cmd+Shift+X`).

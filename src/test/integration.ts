@@ -5,7 +5,7 @@ import { CaptureService } from '../capture';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export async function run() {
-  const extension = vscode.extensions.getExtension('nihil-local.nihilanth-toolbox');
+  const extension = vscode.extensions.getExtension('Nihilnia.nihilanth-toolbox');
   assert.ok(extension, 'Extension is installed in development host');
   const api = await extension.activate() as { store: MemoryStore; capture: CaptureService };
   assert.ok(api.store);

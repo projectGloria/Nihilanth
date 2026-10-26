@@ -3,8 +3,26 @@
   "displayName": "Nihilanth Toolbox",
   "description": "An offline, editor-first toolbox: slash commands, code memory, snippets, dummy data, and transformations.",
   "version": "0.1.5",
-  "publisher": "nihil-local",
+  "publisher": "Nihilnia",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/projectGloria/Nihilanth.git"
+  },
+  "bugs": {
+    "url": "https://github.com/projectGloria/Nihilanth/issues"
+  },
+  "homepage": "https://github.com/projectGloria/Nihilanth#readme",
+  "keywords": [
+    "snippet",
+    "snippets",
+    "dummy data",
+    "mock",
+    "offline",
+    "typescript",
+    "transform",
+    "productivity"
+  ],
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -31,7 +49,8 @@
     "test": "npm run compile && node --test out/test/core.test.js",
     "test:integration": "npm run build && node scripts/integration.mjs",
     "vscode:prepublish": "npm run build",
-    "package": "vsce package --no-dependencies --allow-missing-repository --out nihilanth-toolbox-0.1.5.vsix"
+    "package": "vsce package",
+    "publish": "vsce publish"
   },
   "contributes": {
     "commands": [
@@ -191,17 +210,15 @@
   "overrides": {
     "@azure/msal-node": "7.1.1"
   },
-  "dependencies": {
-    "typescript": "6.0.3",
-    "proper-lockfile": "4.1.2"
-  },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/vscode": "^1.100.0",
     "@types/proper-lockfile": "^4.1.4",
+    "@types/vscode": "^1.100.0",
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "4.0.0",
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "proper-lockfile": "4.1.2",
+    "typescript": "6.0.3"
   },
   "icon": "media/icon.png"
 }
