@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { declarations, insideStringOrComment, parseLiteral, removesWholeIdentifier } from '../syntax';
+import { declarations, insideStringOrComment, isCompleteDeclaration, parseLiteral, removesWholeIdentifier } from '../syntax';
 import { parseDataRequest, parseDirective } from '../directives';
 import { generate, Generator } from '../generator';
 import { transform } from '../transforms';
-import { DamagedMemoryError, MemoryStore } from '../storage';
-import { Capture, looksSecret, searchEntries } from '../model';
+import { checkpointMs, DamagedMemoryError, MemoryStore, seenRefreshMs } from '../storage';
+import { Capture, looksSecret, MemoryEntry, searchEntries } from '../model';
 import { uniqueRecallEntries } from '../recall';
 
 test('slash commands require a dedicated line and distinguish ordinary slash syntax', () => {
@@ -288,3 +288,172 @@ test('a damaged database can be moved aside without being deleted', () => withSt
   await store.capture([capture('two', 'const two = 2;')]);
   assert.deepEqual((await store.list()).map(e => e.name), ['two']);
 }));
+
+// --- Regressions from the 2026-11 audit ---
+
+async function withClock(fn: (dir: string, store: MemoryStore, clock: { t: number }) => Promise<void>) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'nihilanth-clock-'));
+  const clock = { t: 1_000_000 };
+  try { await fn(dir, new MemoryStore(dir, () => 100_000_000, { now: () => clock.t }), clock); } finally { await fs.rm(dir, { recursive: true, force: true }); }
+}
+const scopeOf = { project: 'file:///p', file: 'file:///p/a.ts' };
+const snap = (store: MemoryStore, text: string) => store.snapshot(scopeOf, declarations(text, 'a.ts').map(d => capture(d.name, d.text)));
+
+test('editing a declaration through a broken state keeps the last good version recallable', () => withClock(async (_, store, clock) => {
+  await snap(store, 'const nihil = { value: 42 };');
+  clock.t += 1000;
+  await snap(store, 'const nihil = ;');
+  assert.deepEqual((await store.list()).map(e => e.text), ['const nihil = { value: 42 };'], 'A broken version never replaces the live one');
+  await store.capture([capture('nihil', 'const nihil = ;')]);
+  await snap(store, '');
+  const all = await store.list();
+  assert.deepEqual(uniqueRecallEntries(all, scopeOf.file, scopeOf.project).map(e => e.text), ['const nihil = { value: 42 };']);
+}));
+
+test('long-standing versions become history when replaced; drafts and typed name prefixes do not pile up', () => withClock(async (_, store, clock) => {
+  await snap(store, 'function getUser() { return 1; }');
+  clock.t += checkpointMs + 1;
+  await snap(store, 'function getUser() { return 2; }');
+  clock.t += 1000;
+  await snap(store, 'function getUser() { return 3; }');
+  assert.deepEqual((await store.list()).map(e => `${e.text}${e.live ? ' (live)' : ''}`).sort(), ['function getUser() { return 1; }', 'function getUser() { return 3; } (live)']);
+  for (const name of ['getP', 'getPos', 'getPost']) { clock.t += 1000; await snap(store, `function getUser() { return 3; }\nfunction ${name}() {}`); }
+  assert.deepEqual((await store.list()).map(e => e.name).sort(), ['getPost', 'getUser', 'getUser'], 'No getP/getPos history');
+}));
+
+test('unchanged live declarations refresh their LRU age at most once per refresh window', () => withClock(async (_, store, clock) => {
+  await snap(store, 'const stable = 1;');
+  const first = (await store.list())[0].capturedAt;
+  clock.t += 1000;
+  await snap(store, 'const stable = 1;');
+  assert.equal((await store.list())[0].capturedAt, first);
+  clock.t += seenRefreshMs + 1;
+  await snap(store, 'const stable = 1;');
+  assert.equal((await store.list())[0].capturedAt, clock.t);
+}));
+
+test('a read in flight before the lock cannot make a write truncate another window append', () => withStore(async (dir, a) => {
+  const b = new MemoryStore(dir, () => 100_000);
+  await a.capture([capture('base', 'const base = 1;')]);
+  let open!: () => void;
+  const gate = new Promise<void>(resolve => { open = resolve; });
+  const internals = a as unknown as { load(): Promise<void> };
+  const load = internals.load.bind(a);
+  internals.load = async () => { await load(); await gate; };
+  const listing = a.list();
+  await b.capture([capture('fromB', 'const fromB = 2;')]);
+  const writing = a.capture([capture('fromA', 'const fromA = 3;')]);
+  setTimeout(open, 50);
+  await listing; await writing;
+  internals.load = load;
+  assert.deepEqual((await new MemoryStore(dir, () => 100_000).list()).map(e => e.name).sort(), ['base', 'fromA', 'fromB']);
+}));
+
+test('logs are read in chunks smaller than a line and compaction preserves everything', () => withStore(async dir => {
+  const writer = new MemoryStore(dir, () => 100_000);
+  for (let i = 0; i < 20; i++) await writer.capture([capture(`item${i}`, `const item${i} = "${'x'.repeat(i * 7)}";`)]);
+  const reader = new MemoryStore(dir, () => 100_000, { chunkBytes: 17 });
+  assert.deepEqual((await reader.list()).map(e => e.name).sort(), (await writer.list()).map(e => e.name).sort());
+  await writer.clearHistory();
+  assert.deepEqual(await reader.list(), []);
+}));
+
+test('pinning from Manage pins the chosen entry even when another has identical text', () => withStore(async (_, store) => {
+  const text = 'const exampleArray = [1, 2, 3];';
+  await store.capture([capture(`Removed: ${text}`, text), capture('exampleArray', text)]);
+  const chosen = (await store.list()).find(e => e.name === 'exampleArray')!;
+  await store.pin(chosen, 'myPin');
+  const after = await store.list();
+  assert.equal(after.find(e => e.id === chosen.id)?.pinned, true);
+  assert.equal(after.find(e => e.name.startsWith('Removed:'))?.pinned, false);
+}));
+
+test('clearing history removes the v1 backup and reports damaged backups', () => withStore(async (dir, store) => {
+  await fs.writeFile(path.join(dir, 'memory-v1.json.migrated'), '{"version":1,"entries":[]}');
+  await fs.writeFile(path.join(dir, 'memory-v2.jsonl.damaged-123'), 'old');
+  await store.capture([capture('one', 'const one = 1;')]);
+  await store.clearHistory();
+  await assert.rejects(fs.access(path.join(dir, 'memory-v1.json.migrated')));
+  assert.equal((await store.backups()).length, 1);
+  await store.deleteBackups();
+  assert.equal((await store.backups()).length, 0);
+}));
+
+test('search ignores the home path in file and project URIs but matches file names', () => {
+  const entry = (name: string, text: string): MemoryEntry => ({ id: name, name, text, language: 'typescript', project: 'file:///c%3A/Users/Nihil/Desktop/app', file: 'file:///c%3A/Users/Nihil/Desktop/app/src/orderStore.ts', capturedAt: 1, pinned: false, tags: [], snippet: false });
+  const all = [entry('alpha', 'const alpha = 1;'), entry('beta', 'const beta = 2;')];
+  assert.deepEqual(searchEntries(all, 'users'), []);
+  assert.deepEqual(searchEntries(all, 'desktop'), []);
+  assert.equal(searchEntries(all, 'orderStore').length, 2);
+  assert.equal(searchEntries(all, 'APP').length, 2, 'Project name, case-insensitive');
+});
+
+test('a pinned snippet is listed next to same-name history from the current file', () => {
+  const base = { language: 'typescript', project: 'p', file: 'file:///a.ts', tags: [], snippet: false, capturedAt: 1 };
+  const listed = uniqueRecallEntries([{ ...base, id: 'hist', name: 'fetch', text: 'function fetch() { return 1; }', pinned: false }, { ...base, id: 'pin', name: 'fetch', text: 'fetch(${1:url})', pinned: true, snippet: true, file: 'file:///b.ts' }], 'file:///a.ts', 'p');
+  assert.deepEqual(listed.map(e => e.id).sort(), ['hist', 'pin']);
+});
+
+test('JSDoc is a comment, loop and catch bindings are not declarations, ambient consts are complete', () => {
+  for (const text of ['/** Ni */\nfunction f() {}', 'const a = 1;\n/**\n * Ni\n */\nfunction f() {}']) assert.equal(insideStringOrComment(text, text.indexOf('Ni') + 1), true, text);
+  const code = 'for (let index = 0; index < 3; index++) {}\nfor (const something of list) {}\ntry {} catch (exception) {}\nconst kept = 1;';
+  assert.deepEqual(declarations(code).map(d => d.name), ['kept']);
+  assert.equal(isCompleteDeclaration('declare const x: number;'), true);
+  assert.equal(isCompleteDeclaration('const x: number;'), false);
+});
+
+test('literals keep key order and refuse to round integers or drop duplicate keys', () => {
+  assert.equal(transform('{"b":1,"2":2,"a":3,"1":4}', 'json').replace(/\s+/g, ''), '{"b":1,"2":2,"a":3,"1":4}');
+  assert.deepEqual(JSON.parse(transform('{"b":1,"2":2}', 'keys')), ['b', '2']);
+  assert.throws(() => transform('{"id": 12345678901234567890}', 'object'), /too large/);
+  assert.throws(() => transform('{"a":1,"a":2}', 'json'), /Duplicate key "a"/);
+  assert.throws(() => parseLiteral('1), b = (2'), Error);
+  assert.deepEqual(JSON.parse(transform('{ a: 1 }; // note', 'json')), { a: 1 });
+  assert.equal(parseLiteral('9007199254740991'), Number.MAX_SAFE_INTEGER);
+});
+
+test('case conversions keep sigils and lowercase Turkish dotted capitals', () => {
+  assert.equal(transform('_privateValue', 'snake'), '_private_value');
+  assert.equal(transform('$el_ref', 'camel'), '$elRef');
+  assert.equal(transform('class_', 'pascal'), 'Class_');
+  assert.equal(transform('İstanbul şehri', 'camel'), 'istanbulŞehri');
+});
+
+test('type inference merges array object shapes with optional keys', () => {
+  assert.equal(transform('[{"id":1,"name":"a"},{"id":2}]', 'type'), 'type GeneratedType = Array<{\n  id: number;\n  name?: string;\n}>;');
+  assert.equal(transform('{}', 'type'), 'type GeneratedType = {};');
+  assert.match(transform('{"first-name": "a"}', 'type'), /"first-name": string;/);
+});
+
+test('generated fields follow whole-word names, ids are unique, and people are consistent per record and object', () => {
+  const types = 'interface Row { email: string; id: number; uuid: string; userID: string; candidate: string; fileName: string; name: string; manager: { name: string; email: string } }';
+  const rows = JSON.parse(generate(parseDataRequest('from Row 20 --format=json --seed=1'), types));
+  assert.deepEqual(rows.map((r: any) => r.id), Array.from({ length: 20 }, (_, i) => i + 1));
+  for (const r of rows) {
+    assert.match(r.uuid, /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/);
+    assert.match(r.userID, /^id-/);
+    assert.doesNotMatch(r.candidate, /^\d{4}-\d\d-\d\dT/);
+    assert.match(r.fileName, /\.txt$/);
+    assert.ok(r.email.startsWith(`${r.name.toLowerCase()}.`), JSON.stringify(r));
+    assert.ok(r.manager.email.startsWith(`${r.manager.name.toLowerCase()}.`), JSON.stringify(r.manager));
+  }
+  assert.ok(rows.some((r: any) => r.manager.name !== r.name), 'Nested objects get their own person');
+});
+
+test('seeds outside the 32-bit generator state are rejected instead of colliding', () => {
+  for (const bad of ['users --seed=4294967296', 'users --seed=-1']) assert.throws(() => parseDataRequest(bad), /Seed must be/, bad);
+  assert.equal(parseDataRequest('users --seed=4294967295').seed, 4294967295);
+});
+
+test('slash arguments may contain slashes, and an operator after the word is code', () => {
+  assert.equal(parseDirective('/recall src/api')?.argument, 'src/api');
+  assert.equal(parseDirective('  #data = 1;', '#'), undefined);
+  assert.equal(parseDirective('/data (\\d+)/.exec(s)'), undefined);
+  assert.equal(parseDirective('#data users 2', '#')?.command, 'data');
+});
+
+test('credentials in short literals, passphrases, URLs and bearer tokens are recognized', () => {
+  for (const secret of ['const password = "hunter2";', 'const secret = "correct horse battery staple";', 'const dbUrl = "postgres://admin:S3cret!@db/prod";', 'headers.Authorization = "Bearer abcdefghijklmnop";'])
+    assert.equal(looksSecret(secret), true, secret);
+  for (const ordinary of ['const url = "https://example.com/path";', 'const token = `${prefix}`;', 'const auth = `Bearer ${token}`;']) assert.equal(looksSecret(ordinary), false, ordinary);
+});

@@ -7,14 +7,17 @@ export function parseDirective(line: string, prefix = '/'): Directive | undefine
   const text = line.slice(start);
   if (!text.startsWith(prefix)) return;
   const rest = text.slice(prefix.length);
-  // A closing slash makes this a regex/path, not a toolbox directive.
-  if (rest.includes('/') || rest.startsWith('*') || rest.startsWith('/')) return;
+  if (rest.startsWith('*') || rest.startsWith('/')) return;
+  // The command word must end at whitespace or the line end, so a slash inside it (`/usr/bin`, `/foo/`, `/recall/g`)
+  // makes this a path or regex. Arguments may contain slashes: `/recall src/api`.
   const match = /^(\w*)(?:\s+(.*))?$/.exec(rest);
   if (!match) return;
   const [, partial, argument = ''] = match;
   if (!commandNames.some(c => c.startsWith(partial))) return;
   const command = commandNames.find(c => c === partial);
   if (!command && argument) return;
+  // An operator after the word is code, not arguments: with prefix `#`, `#data = 1;` is a private field.
+  if (/^[=:(.;,?!+*%&|<>[\]{}^~]/.test(argument)) return;
   return { command, partial, argument, start, text };
 }
 
@@ -35,7 +38,8 @@ export function parseDataRequest(argument: string, defaultCount = 5): DataReques
     else throw new Error(`Unknown data option: ${word}`);
   }
   if (!Number.isInteger(count) || count < 1 || count > 1000) throw new Error('Record count must be between 1 and 1000.');
-  if (result.seed !== undefined && !Number.isSafeInteger(result.seed)) throw new Error('Seed must be a safe integer.');
+  // The generator state is 32 bits; larger seeds would silently collide (1 and 2^32 + 1 gave identical data).
+  if (result.seed !== undefined && !(Number.isInteger(result.seed) && result.seed >= 0 && result.seed <= 0xffffffff)) throw new Error('Seed must be an integer from 0 to 4294967295.');
   if (fromType && !/^[A-Za-z_$][\w$]*$/.test(source)) throw new Error('Use a locally declared type name after "from".');
   return result;
 }

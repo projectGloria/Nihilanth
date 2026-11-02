@@ -80,7 +80,7 @@ export async function run() {
     // Do not call the completion API or triggerSuggest here: those mask a broken typing trigger.
     await vscode.commands.executeCommand('acceptSelectedSuggestion');
     await delay(150);
-    assert.equal(doc.getText(), 'nihil', 'Typing N then i opens recall even with quick suggestions disabled');
+    assert.equal(doc.getText(), 'Ni', 'Quick suggestions off is respected: typing never forces the list open');
   } finally {
     await editorConfig.update('quickSuggestions', previousQuickSuggestions, vscode.ConfigurationTarget.Workspace);
     await editorConfig.update('wordBasedSuggestions', previousWordSuggestions, vscode.ConfigurationTarget.Workspace);
@@ -190,6 +190,34 @@ export async function run() {
   assert.ok(!(await completions()).some(i => label(i) === 'foreignOnly — code'));
   console.log('PASS: shared history with current-project filter');
 
+  await replace('const lineGone = [1, 2, 3, 4, 5, 6];\nconst keep = 1;\n');
   await api.capture.flush();
-  console.log('All 15 extension-host integration scenarios passed.');
+  editor.selection = new vscode.Selection(0, 0, 0, 0);
+  await vscode.commands.executeCommand('editor.action.deleteLines');
+  await api.capture.flush();
+  assert.deepEqual((await api.store.list()).filter(e => e.text === 'const lineGone = [1, 2, 3, 4, 5, 6];').map(e => e.name), ['lineGone'], 'One entry, no duplicate "Removed:" copy');
+  console.log('PASS: deleting a declaration line stores it once');
+
+  await api.store.capture([{ name: 'docTarget', text: 'const docTarget = 1;', file: 'file:///elsewhere/x.ts', project: 'file:///elsewhere', language: 'typescript' }]);
+  await replace('/** doc */\nfunction f() {}');
+  editor.selection = new vscode.Selection(doc.positionAt(7), doc.positionAt(7));
+  assert.ok(!(await completions()).some(i => label(i).startsWith('docTarget')), 'No recall inside JSDoc');
+  await replace('const docLocal = 1;\ndoc');
+  await api.capture.flush();
+  items = await completions();
+  const remembered = items.filter(i => label(i).startsWith('docTarget —'));
+  assert.ok(remembered.length && remembered.every(i => i.sortText?.startsWith('~')), 'Recall loses ties to the language server');
+  assert.ok(!items.some(i => label(i).startsWith('docLocal —')), 'Declarations live in this file are left to the language server');
+  console.log('PASS: JSDoc, ranking, and current-file declarations');
+
+  await replace(Array.from({ length: 10 }, (_, i) => `const line${i} = ${i};`).join('\n'));
+  editor.selection = new vscode.Selection(5, 0, 9, 5);
+  await vscode.commands.executeCommand('editor.action.deleteLines');
+  await replace('/recall ');
+  await delay(200);
+  assert.equal(doc.lineCount, 1, 'Deleting the last lines with a stale selection does not break the change listener');
+  console.log('PASS: change listener after deleting trailing lines');
+
+  await api.capture.flush();
+  console.log('All 19 extension-host integration scenarios passed.');
 }

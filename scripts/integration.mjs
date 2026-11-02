@@ -1,12 +1,15 @@
 import { runTests } from '@vscode/test-electron';
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const session = path.join(root, '.vscode-test', `session-${Date.now()}`);
+const sessions = path.join(root, '.vscode-test');
+// Each run leaves a user-data directory behind; keep only the newest so the folder does not grow without bound.
+for (const name of await readdir(sessions).catch(() => [])) if (name.startsWith('session-')) await rm(path.join(sessions, name), { recursive: true, force: true });
+const session = path.join(sessions, `session-${Date.now()}`);
 const workspace = path.join(session, 'workspace');
 await mkdir(workspace, { recursive: true });
 await writeFile(path.join(workspace, 'sample.ts'), '');

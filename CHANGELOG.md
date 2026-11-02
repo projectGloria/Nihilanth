@@ -12,6 +12,40 @@
 - `--edge=boundary` now emits `0`, `-1`, and the safe-integer limits; generated users get matching names and emails.
 - Keep pending removals when settings change, parse `/data from` types with the document's real file kind, and release closed previews.
 
+### Memory integrity
+- Fix losing the last good version of a declaration edited through a broken state (`const nihil = ;` paused mid-edit): broken versions never replace the live copy, and versions that stood for 10+ minutes are kept as history when replaced.
+- Fix a race where one window could truncate another window's freshly appended entries: writes now re-read the log under the lock and reads wait for writes.
+- `historyLimitMB` is a user-only setting: a repository's workspace settings could shrink the shared history of every project.
+- Removed code whose write fails (lock timeout, Windows EPERM, damaged database) is kept and retried instead of dropped; removals seen before a document outgrew `maxDocumentKB` are written too.
+- Untitled buffers in different windows no longer replace each other's entries; closing one turns its declarations into history.
+- "Pin / edit snippet" in Manage pins the chosen entry, not another entry with the same text. Deleting a whole declaration line no longer stores a duplicate `Removed: …` copy.
+- Typing a name with pauses (`getU`, `getUse`, …) no longer leaves junk history; loop variables and `catch` bindings are not captured as code.
+- Unchanged live declarations refresh their eviction age, so the most stable code is no longer evicted first.
+- Logs are read and compacted in chunks (no V8 string-length crash at large `historyLimitMB`); compaction retries a rename blocked by antivirus; a compromised lock is reported instead of throwing an uncaught exception.
+- Clear History also discards unwritten removals and the `memory-v1.json.migrated` backup, and offers to delete damaged-database backups.
+
+### Suggestions
+- Automatic recall follows `editor.quickSuggestions` and only reopens the list at the second typed character, instead of hiding and reopening it on every keystroke.
+- Language-server items win ties with recall items; recall skips declarations that exist in the current file.
+- Fix an exception from reading a stale selection after deleting lines, and suggestions reopening on the new line after Enter on a slash command.
+- `/recall` and Manage no longer match every entry through the home-folder path; Manage search by code, tags, and project works.
+- Recall no longer pops up inside JSDoc comments; a pinned snippet is listed even when history has the same name.
+- `/recall src/api` accepts slashes in the query; a custom prefix such as `#` no longer turns `#data = 1;` into a command.
+- Esc ends a Ctrl+Alt+Space session; Enter on a `/data` error hint starts a new line; deleting an entry asks for confirmation; Pause/Resume Capture reports the real state.
+- Automatic recall skips documents over `maxDocumentKB` and parses only when a stored name matches; previews load when an item is focused; generated data is reused while the list is open.
+
+### Data and transforms
+- Numeric `id` fields generated from types are sequential; `uuid`/`guid` are UUIDs; name heuristics match whole words (`candidate` is not a date, `fileName` is not a person); email and name agree in any field order and per nested object.
+- Seeds must be within 0–4294967295 (larger seeds silently collided).
+- Transforms keep key order, reject integers beyond `MAX_SAFE_INTEGER` and duplicate keys instead of corrupting them, accept trailing comments, reject `1), b = (2`, keep `_`/`$` prefixes in case conversions, and lowercase `İ` correctly. "JSON → TypeScript type" merges object shapes in arrays with optional keys.
+
+### Platform
+- Runs in remote windows (WSL, SSH, Dev Containers, Codespaces); memory is per machine there.
+- Activates on JS/TS/JSON instead of at every startup; the status bar item shows only for those files.
+- macOS shortcut is Ctrl+Shift+Space (Cmd+Alt+Space is Finder search).
+- Untitled and `.mjs`/`.cjs` documents are parsed with their real language.
+- Note: seeded `/data` output changed for types with numeric ids, UUIDs, and name-like fields.
+
 ## 0.1.5
 
 - Add a matching dragon-head extension icon and clickable bottom-right status-bar icon.

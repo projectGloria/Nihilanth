@@ -39,6 +39,7 @@
   ],
   "main": "./dist/extension.js",
   "extensionKind": [
+    "workspace",
     "ui"
   ],
   "capabilities": {
@@ -49,7 +50,12 @@
     }
   },
   "activationEvents": [
-    "onStartupFinished"
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:json",
+    "onLanguage:jsonc"
   ],
   "scripts": {
     "compile": "tsc -p .",
@@ -107,8 +113,13 @@
       {
         "command": "nihilanth.open",
         "key": "ctrl+alt+space",
-        "mac": "cmd+alt+space",
+        "mac": "ctrl+shift+space",
         "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "nihilanth.endSession",
+        "key": "escape",
+        "when": "nihilanth.manualSession && suggestWidgetVisible && textInputFocus"
       }
     ],
     "menus": {
@@ -155,7 +166,8 @@
           "default": 100,
           "minimum": 1,
           "maximum": 1024,
-          "description": "Automatic history size cap. Oldest unpinned entries are evicted; pins never expire."
+          "scope": "application",
+          "description": "Automatic history size cap, shared by all projects. Least recently seen or used unpinned entries are evicted; pins never expire. User settings only: a workspace cannot shrink your history."
         },
         "nihilanth.excludedFolders": {
           "type": "array",
@@ -194,7 +206,7 @@
           "type": "number",
           "default": 512,
           "minimum": 1,
-          "description": "Skip automatic capture for documents larger than this size."
+          "description": "Skip automatic capture and automatic recall for documents larger than this size."
         }
       }
     },
@@ -221,7 +233,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/proper-lockfile": "^4.1.4",
-    "@types/vscode": "^1.100.0",
+    "@types/vscode": "~1.100.0",
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "4.0.0",
     "esbuild": "^0.25.0",
